@@ -1,0 +1,597 @@
+;/*******************************************************
+;  Radar Project - ATmega16A (UART to Processing)
+;*******************************************************/
+;#include <mega16a.h>
+;PCODE: $00000000 VOL: 0
+	#ifndef __SLEEP_DEFINED__
+;PCODE: $00000001 VOL: 0
+	#define __SLEEP_DEFINED__
+;PCODE: $00000002 VOL: 0
+	.EQU __se_bit=0x40
+;PCODE: $00000003 VOL: 0
+	.EQU __sm_mask=0xB0
+;PCODE: $00000004 VOL: 0
+	.EQU __sm_powerdown=0x20
+;PCODE: $00000005 VOL: 0
+	.EQU __sm_powersave=0x30
+;PCODE: $00000006 VOL: 0
+	.EQU __sm_standby=0xA0
+;PCODE: $00000007 VOL: 0
+	.EQU __sm_ext_standby=0xB0
+;PCODE: $00000008 VOL: 0
+	.EQU __sm_adc_noise_red=0x10
+;PCODE: $00000009 VOL: 0
+	.SET power_ctrl_reg=mcucr
+;PCODE: $0000000A VOL: 0
+	#endif
+;PCODE: $0000000B VOL: 0
+;PCODE: $0000000C VOL: 0
+;#include <delay.h>
+;#include <math.h>
+;
+;// Pin Definitions
+;#define TRIG PORTC.7
+;
+;// Global variables
+;unsigned long pulse_width = 0;
+;unsigned char edge_flag = 0;
+;unsigned char measurement_done = 0;
+;unsigned int timer0_overflow = 0;
+;unsigned int distance = 0;
+;int ang = 0;
+;int direction = 0;
+;
+;// ==================== Ultrasonic ====================
+;interrupt [EXT_INT0] void ext_int0_isr(void)
+; 0000 0016 {
+
+	.CSEG
+;PCODE: $0000000D VOL: 0
+;PCODE: $0000000E VOL: 0
+; 0000 0017 // Place your code here
+; 0000 0018     if (edge_flag == 0) {                    // Rising edge
+;PCODE: $0000000F VOL: 0
+;PCODE: $00000010 VOL: 0
+; 0000 0019         TCNT0 = 0;
+;PCODE: $00000011 VOL: 0
+;PCODE: $00000012 VOL: 0
+; 0000 001A         timer0_overflow = 0;
+;PCODE: $00000013 VOL: 0
+; 0000 001B         TCCR0 = (1<<CS01) | (1<<CS00);       // Prescaler 64 ? 8us per tick @ 8MHz
+;PCODE: $00000014 VOL: 0
+;PCODE: $00000015 VOL: 0
+; 0000 001C         MCUCR = (1<<ISC01) | (0<<ISC00);     // Switch to Falling edge
+;PCODE: $00000016 VOL: 0
+;PCODE: $00000017 VOL: 0
+; 0000 001D         edge_flag = 1;
+;PCODE: $00000018 VOL: 0
+;PCODE: $00000019 VOL: 0
+; 0000 001E     } else {                                 // Falling edge
+;PCODE: $0000001A VOL: 0
+;PCODE: $0000001B VOL: 0
+; 0000 001F         TCCR0 = 0;                           // Stop Timer0
+;PCODE: $0000001C VOL: 0
+;PCODE: $0000001D VOL: 0
+; 0000 0020         pulse_width = ((unsigned long)timer0_overflow << 8) | TCNT0;
+;PCODE: $0000001E VOL: 0
+;PCODE: $0000001F VOL: 0
+;PCODE: $00000020 VOL: 0
+;PCODE: $00000021 VOL: 0
+;PCODE: $00000022 VOL: 0
+;PCODE: $00000023 VOL: 0
+;PCODE: $00000024 VOL: 0
+;PCODE: $00000025 VOL: 0
+;PCODE: $00000026 VOL: 0
+; 0000 0021         MCUCR = (1<<ISC01) | (1<<ISC00);     // Back to Rising edge
+;PCODE: $00000027 VOL: 0
+;PCODE: $00000028 VOL: 0
+; 0000 0022         edge_flag = 0;
+;PCODE: $00000029 VOL: 0
+; 0000 0023         measurement_done = 1;
+;PCODE: $0000002A VOL: 0
+;PCODE: $0000002B VOL: 0
+; 0000 0024     }
+;PCODE: $0000002C VOL: 0
+; 0000 0025 }
+;PCODE: $0000002D VOL: 0
+;PCODE: $0000002E VOL: 0
+;PCODE: $0000002F VOL: 0
+;
+;// Timer 0 overflow interrupt service routine
+;interrupt [TIM0_OVF] void timer0_ovf_isr(void)
+; 0000 0029 {
+;PCODE: $00000030 VOL: 0
+;PCODE: $00000031 VOL: 0
+; 0000 002A // Place your code here
+; 0000 002B     timer0_overflow++;
+;PCODE: $00000032 VOL: 0
+;PCODE: $00000033 VOL: 0
+;PCODE: $00000034 VOL: 0
+; 0000 002C }
+;PCODE: $00000035 VOL: 0
+;PCODE: $00000036 VOL: 0
+;PCODE: $00000037 VOL: 0
+;
+;unsigned int get_distance(void)
+; 0000 002F {
+;PCODE: $00000038 VOL: 0
+;PCODE: $00000039 VOL: 0
+; 0000 0030     pulse_width = 0;
+;PCODE: $0000003A VOL: 0
+;PCODE: $0000003B VOL: 0
+; 0000 0031     measurement_done = 0;
+;PCODE: $0000003C VOL: 0
+; 0000 0032     edge_flag = 0;
+;PCODE: $0000003D VOL: 0
+; 0000 0033     timer0_overflow = 0;
+;PCODE: $0000003E VOL: 0
+; 0000 0034 
+; 0000 0035     // Send Trigger Pulse
+; 0000 0036     TRIG = 0;
+;PCODE: $0000003F VOL: 0
+;PCODE: $00000040 VOL: 0
+; 0000 0037     delay_us(3);
+;PCODE: $00000041 VOL: 0
+; 0000 0038     TRIG = 1;
+;PCODE: $00000042 VOL: 0
+;PCODE: $00000043 VOL: 0
+; 0000 0039     delay_us(12);
+;PCODE: $00000044 VOL: 0
+; 0000 003A     TRIG = 0;
+;PCODE: $00000045 VOL: 0
+;PCODE: $00000046 VOL: 0
+; 0000 003B 
+; 0000 003C     // Wait up to 60ms for echo
+; 0000 003D     delay_ms(60);
+;PCODE: $00000047 VOL: 0
+;PCODE: $00000048 VOL: 0
+;PCODE: $00000049 VOL: 0
+; 0000 003E 
+; 0000 003F     if (measurement_done) {
+;PCODE: $0000004A VOL: 0
+;PCODE: $0000004B VOL: 0
+; 0000 0040         // Combine overflow and timer value (each tick = 8us with prescaler 64)
+; 0000 0041         pulse_width = ((unsigned long)timer0_overflow << 8) | TCNT0;
+;PCODE: $0000004C VOL: 0
+;PCODE: $0000004D VOL: 0
+;PCODE: $0000004E VOL: 0
+;PCODE: $0000004F VOL: 0
+;PCODE: $00000050 VOL: 0
+;PCODE: $00000051 VOL: 0
+;PCODE: $00000052 VOL: 0
+;PCODE: $00000053 VOL: 0
+;PCODE: $00000054 VOL: 0
+; 0000 0042         if (pulse_width < 50000) {
+;PCODE: $00000055 VOL: 0
+;PCODE: $00000056 VOL: 0
+;PCODE: $00000057 VOL: 0
+; 0000 0043             return pulse_width / 58;        // Approx cm (adjusted for prescaler)
+;PCODE: $00000058 VOL: 0
+;PCODE: $00000059 VOL: 0
+;PCODE: $0000005A VOL: 0
+;PCODE: $0000005B VOL: 0
+; 0000 0044         }
+; 0000 0045     }
+;PCODE: $0000005C VOL: 0
+; 0000 0046 
+; 0000 0047     return 0;   // Timeout or error
+;PCODE: $0000005D VOL: 0
+;PCODE: $0000005E VOL: 0
+;PCODE: $0000005F VOL: 0
+; 0000 0048 }
+;PCODE: $00000060 VOL: 0
+;// ==================== Servo ====================
+;void servo_init(void) {
+; 0000 004A void servo_init(void) {
+;PCODE: $00000061 VOL: 0
+;PCODE: $00000062 VOL: 0
+; 0000 004B     DDRD |= (1<<5);
+;PCODE: $00000063 VOL: 0
+;PCODE: $00000064 VOL: 0
+; 0000 004C     TCCR1A = (1<<COM1A1) | (1<<WGM11);
+;PCODE: $00000065 VOL: 0
+;PCODE: $00000066 VOL: 0
+; 0000 004D     TCCR1B = (1<<WGM13) | (1<<WGM12) | (1<<CS11);
+;PCODE: $00000067 VOL: 0
+;PCODE: $00000068 VOL: 0
+; 0000 004E     ICR1H = (20000 >> 8);
+;PCODE: $00000069 VOL: 0
+;PCODE: $0000006A VOL: 0
+; 0000 004F     ICR1L = (unsigned char)20000;
+;PCODE: $0000006B VOL: 0
+;PCODE: $0000006C VOL: 0
+; 0000 0050     OCR1A = 1500;
+;PCODE: $0000006D VOL: 0
+;PCODE: $0000006E VOL: 0
+; 0000 0051 }
+;PCODE: $0000006F VOL: 0
+;PCODE: $00000070 VOL: 0
+;
+;void servo_write(unsigned char angle) {
+; 0000 0053 void servo_write(unsigned char angle) {
+;PCODE: $00000071 VOL: 0
+;PCODE: $00000072 VOL: 0
+; 0000 0054     if(angle > 180) angle = 180;
+;PCODE: $00000073 VOL: 0
+;	angle -> Y+0
+;PCODE: $00000074 VOL: 0
+;PCODE: $00000075 VOL: 0
+;PCODE: $00000076 VOL: 0
+;PCODE: $00000077 VOL: 0
+;PCODE: $00000078 VOL: 0
+; 0000 0055     angle = 180 - angle;
+;PCODE: $00000079 VOL: 0
+;PCODE: $0000007A VOL: 0
+;PCODE: $0000007B VOL: 0
+;PCODE: $0000007C VOL: 0
+;PCODE: $0000007D VOL: 0
+; 0000 0056     OCR1A = 1000 + ((unsigned long)angle * 1000) / 180;
+;PCODE: $0000007E VOL: 0
+;PCODE: $0000007F VOL: 0
+;PCODE: $00000080 VOL: 0
+;PCODE: $00000081 VOL: 0
+;PCODE: $00000082 VOL: 0
+;PCODE: $00000083 VOL: 0
+;PCODE: $00000084 VOL: 0
+;PCODE: $00000085 VOL: 0
+;PCODE: $00000086 VOL: 0
+;PCODE: $00000087 VOL: 0
+; 0000 0057 }
+;PCODE: $00000088 VOL: 0
+;PCODE: $00000089 VOL: 0
+;PCODE: $0000008A VOL: 0
+;
+;// ==================== UART ====================
+;void uart_init(void) {
+; 0000 005A void uart_init(void) {
+;PCODE: $0000008B VOL: 0
+;PCODE: $0000008C VOL: 0
+; 0000 005B     UCSRB = (1<<RXEN) | (1<<TXEN);
+;PCODE: $0000008D VOL: 0
+;PCODE: $0000008E VOL: 0
+; 0000 005C     UCSRC = (1<<URSEL) | (1<<UCSZ1) | (1<<UCSZ0);
+;PCODE: $0000008F VOL: 0
+;PCODE: $00000090 VOL: 0
+; 0000 005D     UBRRL = 51;      // 9600 baud @ 8MHz
+;PCODE: $00000091 VOL: 0
+;PCODE: $00000092 VOL: 0
+; 0000 005E     UBRRH = 0;
+;PCODE: $00000093 VOL: 0
+;PCODE: $00000094 VOL: 0
+; 0000 005F }
+;PCODE: $00000095 VOL: 0
+;PCODE: $00000096 VOL: 0
+;
+;void uart_send_char(char c) {
+; 0000 0061 void uart_send_char(char c) {
+;PCODE: $00000097 VOL: 0
+;PCODE: $00000098 VOL: 0
+; 0000 0062     while (!(UCSRA & (1<<UDRE)));
+;PCODE: $00000099 VOL: 0
+;	c -> Y+0
+;PCODE: $0000009A VOL: 0
+;PCODE: $0000009B VOL: 0
+;PCODE: $0000009C VOL: 0
+;PCODE: $0000009D VOL: 0
+;PCODE: $0000009E VOL: 0
+;PCODE: $0000009F VOL: 0
+; 0000 0063     UDR = c;
+;PCODE: $000000A0 VOL: 0
+;PCODE: $000000A1 VOL: 0
+; 0000 0064 }
+;PCODE: $000000A2 VOL: 0
+;PCODE: $000000A3 VOL: 0
+;PCODE: $000000A4 VOL: 0
+;
+;void uart_send_number(unsigned int num) {
+; 0000 0066 void uart_send_number(unsigned int num) {
+;PCODE: $000000A5 VOL: 0
+;PCODE: $000000A6 VOL: 0
+; 0000 0067     char buf[8];
+; 0000 0068     unsigned char i = 0;
+; 0000 0069 
+; 0000 006A     if (num == 0) {
+;PCODE: $000000A7 VOL: 0
+;PCODE: $000000A8 VOL: 0
+;PCODE: $000000A9 VOL: 0
+;	num -> Y+9
+;	buf -> Y+1
+;	i -> R17
+;PCODE: $000000AA VOL: 0
+;PCODE: $000000AB VOL: 0
+;PCODE: $000000AC VOL: 0
+;PCODE: $000000AD VOL: 0
+;PCODE: $000000AE VOL: 0
+; 0000 006B         uart_send_char('0');
+;PCODE: $000000AF VOL: 0
+;PCODE: $000000B0 VOL: 0
+; 0000 006C         return;
+;PCODE: $000000B1 VOL: 0
+;PCODE: $000000B2 VOL: 0
+;PCODE: $000000B3 VOL: 0
+;PCODE: $000000B4 VOL: 0
+; 0000 006D     }
+; 0000 006E 
+; 0000 006F     while (num > 0) {
+;PCODE: $000000B5 VOL: 0
+;PCODE: $000000B6 VOL: 0
+;PCODE: $000000B7 VOL: 0
+;PCODE: $000000B8 VOL: 0
+;PCODE: $000000B9 VOL: 0
+; 0000 0070         buf[i++] = (num % 10) + '0';
+;PCODE: $000000BA VOL: 0
+;PCODE: $000000BB VOL: 0
+;PCODE: $000000BC VOL: 0
+;PCODE: $000000BD VOL: 0
+;PCODE: $000000BE VOL: 0
+;PCODE: $000000BF VOL: 0
+;PCODE: $000000C0 VOL: 0
+;PCODE: $000000C1 VOL: 0
+;PCODE: $000000C2 VOL: 0
+;PCODE: $000000C3 VOL: 0
+;PCODE: $000000C4 VOL: 0
+;PCODE: $000000C5 VOL: 0
+;PCODE: $000000C6 VOL: 0
+; 0000 0071         num /= 10;
+;PCODE: $000000C7 VOL: 0
+;PCODE: $000000C8 VOL: 0
+;PCODE: $000000C9 VOL: 0
+;PCODE: $000000CA VOL: 0
+; 0000 0072     }
+;PCODE: $000000CB VOL: 0
+;PCODE: $000000CC VOL: 0
+; 0000 0073     while (i > 0) {
+;PCODE: $000000CD VOL: 0
+;PCODE: $000000CE VOL: 0
+;PCODE: $000000CF VOL: 0
+;PCODE: $000000D0 VOL: 0
+; 0000 0074         uart_send_char(buf[--i]);
+;PCODE: $000000D1 VOL: 0
+;PCODE: $000000D2 VOL: 0
+;PCODE: $000000D3 VOL: 0
+;PCODE: $000000D4 VOL: 0
+;PCODE: $000000D5 VOL: 0
+;PCODE: $000000D6 VOL: 0
+;PCODE: $000000D7 VOL: 0
+;PCODE: $000000D8 VOL: 0
+; 0000 0075     }
+;PCODE: $000000D9 VOL: 0
+;PCODE: $000000DA VOL: 0
+; 0000 0076 }
+;PCODE: $000000DB VOL: 0
+;PCODE: $000000DC VOL: 0
+;PCODE: $000000DD VOL: 0
+;PCODE: $000000DE VOL: 0
+;PCODE: $000000DF VOL: 0
+;
+;void uart_send_string(char *str) {
+; 0000 0078 void uart_send_string(char *str) {
+;PCODE: $000000E0 VOL: 0
+;PCODE: $000000E1 VOL: 0
+; 0000 0079     while (*str) {
+;PCODE: $000000E2 VOL: 0
+;	*str -> Y+0
+;PCODE: $000000E3 VOL: 0
+;PCODE: $000000E4 VOL: 0
+;PCODE: $000000E5 VOL: 0
+;PCODE: $000000E6 VOL: 0
+;PCODE: $000000E7 VOL: 0
+; 0000 007A         uart_send_char(*str++);
+;PCODE: $000000E8 VOL: 0
+;PCODE: $000000E9 VOL: 0
+;PCODE: $000000EA VOL: 0
+;PCODE: $000000EB VOL: 0
+;PCODE: $000000EC VOL: 0
+; 0000 007B     }
+;PCODE: $000000ED VOL: 0
+;PCODE: $000000EE VOL: 0
+; 0000 007C }
+;PCODE: $000000EF VOL: 0
+;PCODE: $000000F0 VOL: 0
+;PCODE: $000000F1 VOL: 0
+;
+;// ==================== Main ====================
+;void main(void)
+; 0000 0080 {
+;PCODE: $000000F2 VOL: 0
+; 0000 0081     // Ports
+; 0000 0082     DDRC |= (1<<7);          // TRIG
+;PCODE: $000000F3 VOL: 0
+;PCODE: $000000F4 VOL: 0
+; 0000 0083     DDRD |= (1<<5);          // Servo
+;PCODE: $000000F5 VOL: 0
+;PCODE: $000000F6 VOL: 0
+; 0000 0084     PORTD |= (1<<2);           // Pull-up on Echo
+;PCODE: $000000F7 VOL: 0
+;PCODE: $000000F8 VOL: 0
+; 0000 0085 
+; 0000 0086 
+; 0000 0087 // Timer/Counter 0 initialization
+; 0000 0088 // Clock source: System Clock
+; 0000 0089 // Clock value: 1000/000 kHz
+; 0000 008A // Mode: Normal top=0xFF
+; 0000 008B // OC0 output: Disconnected
+; 0000 008C // Timer Period: 0/256 ms
+; 0000 008D TCCR0 = 0x00;   // Stopped
+;PCODE: $000000F9 VOL: 0
+;PCODE: $000000FA VOL: 0
+; 0000 008E TCNT0=0x00;
+;PCODE: $000000FB VOL: 0
+;PCODE: $000000FC VOL: 0
+; 0000 008F OCR0=0x00;
+;PCODE: $000000FD VOL: 0
+;PCODE: $000000FE VOL: 0
+; 0000 0090 
+; 0000 0091 // Timer/Counter 1 initialization
+; 0000 0092 // Clock source: System Clock
+; 0000 0093 // Clock value: 1000/000 kHz
+; 0000 0094 // Mode: Fast PWM top=ICR1
+; 0000 0095 // OC1A output: Non-Inverted PWM
+; 0000 0096 // OC1B output: Disconnected
+; 0000 0097 // Noise Canceler: Off
+; 0000 0098 // Input Capture on Falling Edge
+; 0000 0099 // Timer Period: 1 us
+; 0000 009A // Output Pulse(s):
+; 0000 009B // OC1A Period: 1 us
+; 0000 009C // Timer1 Overflow Interrupt: Off
+; 0000 009D // Input Capture Interrupt: Off
+; 0000 009E // Compare A Match Interrupt: Off
+; 0000 009F // Compare B Match Interrupt: Off
+; 0000 00A0 TCCR1A=(1<<COM1A1) | (0<<COM1A0) | (0<<COM1B1) | (0<<COM1B0) | (1<<WGM11) | (0<<WGM10);
+;PCODE: $000000FF VOL: 0
+;PCODE: $00000100 VOL: 0
+; 0000 00A1 TCCR1B=(0<<ICNC1) | (0<<ICES1) | (1<<WGM13) | (1<<WGM12) | (0<<CS12) | (1<<CS11) | (0<<CS10);
+;PCODE: $00000101 VOL: 0
+;PCODE: $00000102 VOL: 0
+; 0000 00A2 TCNT1H=0x00;
+;PCODE: $00000103 VOL: 0
+;PCODE: $00000104 VOL: 0
+; 0000 00A3 TCNT1L=0x00;
+;PCODE: $00000105 VOL: 0
+;PCODE: $00000106 VOL: 0
+; 0000 00A4 ICR1H=0x00;
+;PCODE: $00000107 VOL: 0
+;PCODE: $00000108 VOL: 0
+; 0000 00A5 ICR1L=0x00;
+;PCODE: $00000109 VOL: 0
+;PCODE: $0000010A VOL: 0
+; 0000 00A6 OCR1AH=0x00;
+;PCODE: $0000010B VOL: 0
+;PCODE: $0000010C VOL: 0
+; 0000 00A7 OCR1AL=0x00;
+;PCODE: $0000010D VOL: 0
+;PCODE: $0000010E VOL: 0
+; 0000 00A8 OCR1BH=0x00;
+;PCODE: $0000010F VOL: 0
+;PCODE: $00000110 VOL: 0
+; 0000 00A9 OCR1BL=0x00;
+;PCODE: $00000111 VOL: 0
+;PCODE: $00000112 VOL: 0
+; 0000 00AA 
+; 0000 00AB // Timer/Counter 2 initialization
+; 0000 00AC // Clock source: System Clock
+; 0000 00AD // Clock value: Timer2 Stopped
+; 0000 00AE // Mode: Normal top=0xFF
+; 0000 00AF // OC2 output: Disconnected
+; 0000 00B0 ASSR=0<<AS2;
+;PCODE: $00000113 VOL: 0
+;PCODE: $00000114 VOL: 0
+; 0000 00B1 TCCR2=(0<<PWM2) | (0<<COM21) | (0<<COM20) | (0<<CTC2) | (0<<CS22) | (0<<CS21) | (0<<CS20);
+;PCODE: $00000115 VOL: 0
+;PCODE: $00000116 VOL: 0
+; 0000 00B2 TCNT2=0x00;
+;PCODE: $00000117 VOL: 0
+;PCODE: $00000118 VOL: 0
+; 0000 00B3 OCR2=0x00;
+;PCODE: $00000119 VOL: 0
+;PCODE: $0000011A VOL: 0
+; 0000 00B4 
+; 0000 00B5 // Timer(s)/Counter(s) Interrupt(s) initialization
+; 0000 00B6 TIMSK=(0<<OCIE2) | (0<<TOIE2) | (0<<TICIE1) | (0<<OCIE1A) | (0<<OCIE1B) | (0<<TOIE1) | (0<<OCIE0) | (1<<TOIE0);
+;PCODE: $0000011B VOL: 0
+;PCODE: $0000011C VOL: 0
+; 0000 00B7 
+; 0000 00B8 // External Interrupt(s) initialization
+; 0000 00B9 // INT0: On
+; 0000 00BA // INT0 Mode: Any change
+; 0000 00BB // INT1: Off
+; 0000 00BC // INT2: Off
+; 0000 00BD GICR|=(0<<INT1) | (1<<INT0) | (0<<INT2);
+;PCODE: $0000011D VOL: 0
+;PCODE: $0000011E VOL: 0
+;PCODE: $0000011F VOL: 0
+; 0000 00BE MCUCR=(0<<ISC11) | (0<<ISC10) | (1<<ISC01) | (1<<ISC00);
+;PCODE: $00000120 VOL: 0
+;PCODE: $00000121 VOL: 0
+; 0000 00BF MCUCSR=(0<<ISC2);
+;PCODE: $00000122 VOL: 0
+;PCODE: $00000123 VOL: 0
+; 0000 00C0 GIFR=(0<<INTF1) | (1<<INTF0) | (0<<INTF2);
+;PCODE: $00000124 VOL: 0
+;PCODE: $00000125 VOL: 0
+; 0000 00C1 
+; 0000 00C2     // Timer1 Servo
+; 0000 00C3     servo_init();
+;PCODE: $00000126 VOL: 0
+; 0000 00C4 
+; 0000 00C5     // UART
+; 0000 00C6     uart_init();
+;PCODE: $00000127 VOL: 0
+; 0000 00C7 
+; 0000 00C8     #asm("sei")
+;PCODE: $00000128 VOL: 0
+	sei
+;PCODE: $00000129 VOL: 0
+; 0000 00C9 
+; 0000 00CA     uart_send_string("Radar Started\r\n");
+;PCODE: $0000012A VOL: 0
+;PCODE: $0000012B VOL: 0
+;PCODE: $0000012C VOL: 0
+; 0000 00CB 
+; 0000 00CC     while (1)
+;PCODE: $0000012D VOL: 0
+; 0000 00CD     {
+; 0000 00CE         if(direction == 0) ang += 5;
+;PCODE: $0000012E VOL: 0
+;PCODE: $0000012F VOL: 0
+;PCODE: $00000130 VOL: 0
+;PCODE: $00000131 VOL: 0
+;PCODE: $00000132 VOL: 0
+; 0000 00CF         else ang -= 5;
+;PCODE: $00000133 VOL: 0
+;PCODE: $00000134 VOL: 0
+;PCODE: $00000135 VOL: 0
+;PCODE: $00000136 VOL: 0
+;PCODE: $00000137 VOL: 0
+; 0000 00D0 
+; 0000 00D1         if(ang >= 180) direction = 1;
+;PCODE: $00000138 VOL: 0
+;PCODE: $00000139 VOL: 0
+;PCODE: $0000013A VOL: 0
+;PCODE: $0000013B VOL: 0
+;PCODE: $0000013C VOL: 0
+;PCODE: $0000013D VOL: 0
+; 0000 00D2         if(ang <= 0)   direction = 0;
+;PCODE: $0000013E VOL: 0
+;PCODE: $0000013F VOL: 0
+;PCODE: $00000140 VOL: 0
+;PCODE: $00000141 VOL: 0
+; 0000 00D3 
+; 0000 00D4         servo_write(ang);
+;PCODE: $00000142 VOL: 0
+;PCODE: $00000143 VOL: 0
+;PCODE: $00000144 VOL: 0
+; 0000 00D5         distance = get_distance();
+;PCODE: $00000145 VOL: 0
+;PCODE: $00000146 VOL: 0
+; 0000 00D6 
+; 0000 00D7         // Send: angle,distance
+; 0000 00D8         uart_send_number(ang);
+;PCODE: $00000147 VOL: 0
+;PCODE: $00000148 VOL: 0
+; 0000 00D9         uart_send_char(',');
+;PCODE: $00000149 VOL: 0
+;PCODE: $0000014A VOL: 0
+; 0000 00DA         uart_send_number(distance);
+;PCODE: $0000014B VOL: 0
+;PCODE: $0000014C VOL: 0
+; 0000 00DB         uart_send_string("\r\n");
+;PCODE: $0000014D VOL: 0
+;PCODE: $0000014E VOL: 0
+;PCODE: $0000014F VOL: 0
+; 0000 00DC 
+; 0000 00DD         delay_ms(50);
+;PCODE: $00000150 VOL: 0
+;PCODE: $00000151 VOL: 0
+;PCODE: $00000152 VOL: 0
+; 0000 00DE     }
+;PCODE: $00000153 VOL: 0
+;PCODE: $00000154 VOL: 0
+; 0000 00DF }
+;PCODE: $00000155 VOL: 0
+;PCODE: $00000156 VOL: 0
+;PCODE: $00000157 VOL: 0
+
+	.DSEG
+_0x1B:
+	.BYTE 0x13

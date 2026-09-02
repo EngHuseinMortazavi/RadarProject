@@ -1,0 +1,33 @@
+RAM Allocation [bytes]
+Variable                                                                          Address   Size
+------------------------------------------------------------------------------------------------
+pulse_width                                                                       0x0173       4
+_seed                                                                             0x0177       4
+
+EEPROM Allocation [bytes]
+Variable                                                                          Address   Size
+------------------------------------------------------------------------------------------------
+
+Register Allocation
+Variable                                                                          Register  Size
+------------------------------------------------------------------------------------------------
+edge_flag                                                                         R5           1
+measurement_done                                                                  R4           1
+timer0_overflow                                                                   R6,R7        2
+distance                                                                          R8,R9        2
+ang                                                                               R10,R11      2
+direction                                                                         R12,R13      2
+
+FLASH Allocation [words]
+Function                                                                          Address   Size
+------------------------------------------------------------------------------------------------
+ext_int0_isr                                                                      0x00077     45
+timer0_ovf_isr                                                                    0x000A4     12
+get_distance                                                                      0x000B0     52
+servo_init                                                                        0x000E4     14
+servo_write                                                                       0x000F2     32
+uart_init                                                                         0x00112      9
+uart_send_char                                                                    0x0011B      7
+uart_send_number                                                                  0x00122     58
+uart_send_string                                                                  0x0015C     15
+main                                                                              0x0016B     83
