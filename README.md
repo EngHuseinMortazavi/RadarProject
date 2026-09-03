@@ -6,7 +6,7 @@ The system continuously scans an area across **180°**, measures the distance to
 
 ## Project Demo
 
-https://github.com/your-username/your-repository/assets/your-video-id
+https://github.com/user-attachments/assets/64504182-7e0e-4bf7-ab55-c9113c4e3abc
 
 ## Overview
 
